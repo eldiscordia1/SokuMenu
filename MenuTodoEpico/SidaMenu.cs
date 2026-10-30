@@ -1,26 +1,32 @@
-﻿using BepInEx;
+using BepInEx;
 using BepInEx.Unity.IL2CPP;
+using HarmonyLib;
 using UnityEngine.Analytics;
+
 namespace SidaMenu
 {
     [BepInAutoPlugin]
     [BepInProcess("Among Us.exe")]
     public partial class SidaMenu : BasePlugin
     {
-        public static bool noTelemetry = true; 
         public override void Load()
         {
-            AddComponent<MenuUI>();
-            HarmonyLib.Harmony harmony = new HarmonyLib.Harmony("com.sida.menu");
-            harmony.PatchAll();
-            /* Disables Telemetry (haven't fully tested if it works, but according to Unity docs it should) 
-            found here: https://github.com/scp222thj/MalumMenu/blob/main/src/MalumMenu.cs at line 205*/
-            if (noTelemetry)
+            Features.BuildCatalog();
+
+            if (States.noTelemetry)
             {
+                /* Disables Unity telemetry - mirrored from MalumMenu. */
                 Analytics.enabled = false;
                 Analytics.deviceStatsEnabled = false;
                 PerformanceReporting.enabled = false;
             }
+
+            AddComponent<MenuUI>();
+            new Harmony("com.sida.menu").PatchAll();
+
+            ConfigManager.LoadOnStart();
+
+            Log.LogInfo($"SidaMenu loaded - {Features.All.Count} features registered");
         }
     }
 }
