@@ -1,7 +1,4 @@
-<h1 align="center">🦠SidaMenu🦠</h1>
-<p align="center">
-  <img src="sidapng.png" alt="sidapng" width="500"> <br>
-</p>
+<h1 align="center">SokuMenu</h1>
 
 <h1 align="center">:warning:CURRENTLY ON DEVELOPMENT:warning:</h1>
 
