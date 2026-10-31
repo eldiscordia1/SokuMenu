@@ -40,6 +40,11 @@ We have a discord so you can share your ideas! https://discord.gg/gaQvGxK5F8
 - Unlock Vents (any role, any distance)
 - Move While Venting
 
+### Visor
+- Browse the game's whole visor catalogue and equip any entry, or type any visor product id.
+- The **Hidden only** filter surfaces wardrobe-hidden visors, including the unused `visor_impostorShine` (Totally Innocent), which still replicates because every client registers the id.
+- Cosmetic ids are client-authoritative, so this works while you are **not** the host and every player in the lobby sees it. Non-visor textures stay local.
+
 ### Host
 - Max Players (configurable cap)
 - Block Game End

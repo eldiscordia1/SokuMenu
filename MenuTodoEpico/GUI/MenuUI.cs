@@ -13,11 +13,16 @@ namespace SidaMenu
         public string version = "v2.0.1";
 
         private static readonly string[] TabNames =
-            { "Self", "Host", "Players", "Misc", "Console", "Config", "About" };
+            { "Self", "Visor", "Host", "Players", "Misc", "Console", "Config", "About" };
 
         private int _tab;
         private string _search = "";
         private Vector2 _scroll;
+
+        private string _visorFilter = "";
+        private string _visorId = "";
+        private Vector2 _visorScroll;
+        private bool _visorHiddenOnly;
 
         private float _fpsTimer;
         private int _fpsFrames;
@@ -281,11 +286,12 @@ namespace SidaMenu
                 switch (_tab)
                 {
                     case 0: Safe.Run("Self tab", DrawSelf); break;
-                    case 1: Safe.Run("Host tab", DrawHost); break;
-                    case 2: Safe.Run("Players tab", DrawPlayers); break;
-                    case 3: Safe.Run("Misc tab", DrawMisc); break;
-                    case 4: Safe.Run("Console tab", DrawConsole); break;
-                    case 5: Safe.Run("Config tab", DrawConfig); break;
+                    case 1: Safe.Run("Visor tab", DrawVisors); break;
+                    case 2: Safe.Run("Host tab", DrawHost); break;
+                    case 3: Safe.Run("Players tab", DrawPlayers); break;
+                    case 4: Safe.Run("Misc tab", DrawMisc); break;
+                    case 5: Safe.Run("Console tab", DrawConsole); break;
+                    case 6: Safe.Run("Config tab", DrawConfig); break;
                     default: Safe.Run("About tab", DrawAbout); break;
                 }
             }
@@ -332,6 +338,126 @@ namespace SidaMenu
             if (W.Button("Exit All Vents")) HostFeatures.ExitAllVents();
             if (W.Button("Copy Lobby Code")) MiscFeatures.CopyLobbyCode();
             GUILayout.EndHorizontal();
+        }
+
+        private void DrawVisors()
+        {
+            var all = VisorFeatures.All();
+            var current = VisorFeatures.CurrentId();
+
+            W.Section("Visor");
+            W.Hint("Cosmetics are client-authoritative in Among Us: this works while you are " +
+                   "not host, and everyone in the lobby sees the visor. Hidden visors are " +
+                   "excluded from the wardrobe but still registered, so they replicate too. " +
+                   "Ids missing from this build's catalogue cannot be resolved by anyone else.");
+            W.Hint($"Current: {(string.IsNullOrEmpty(current) ? "default" : current)}");
+
+            GUILayout.BeginHorizontal();
+            if (W.Button("Remove Visor")) VisorFeatures.Reset();
+            if (W.Button("Random")) VisorFeatures.ApplyRandom();
+            if (W.Button("Refresh")) VisorFeatures.Invalidate();
+            GUILayout.EndHorizontal();
+
+            W.Section("Known hidden");
+            foreach (var known in VisorFeatures.KnownHidden)
+            {
+                GUILayout.BeginHorizontal(GUILayout.Height(22f));
+                try
+                {
+                    GUILayout.Label($"<b>{known.Label}</b>", Theme.Label, GUILayout.Width(210f));
+                    GUILayout.Label(known.Id, Theme.Dim);
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label(VisorFeatures.IsRegistered(known.Id) ? "in catalogue" : "not in this build",
+                        Theme.Dim, GUILayout.Width(110f));
+                    if (W.Button("Use", 70f, 19f)) VisorFeatures.Apply(known.Id);
+                }
+                finally
+                {
+                    GUILayout.EndHorizontal();
+                }
+            }
+
+            var hiddenCount = all.Count(VisorFeatures.IsHidden);
+            W.Section($"Any visor in the game ({all.Count}, {hiddenCount} hidden)");
+            _visorFilter = W.TextField("Filter", _visorFilter, "Match by name or product id.");
+            _visorHiddenOnly = W.Toggle("Hidden only", _visorHiddenOnly,
+                "Only list visors excluded from the wardrobe or flagged as hidden.");
+            _visorId = W.TextField("Visor ID", _visorId, "Any visor product id, for example visor_astronaut.");
+
+            GUILayout.BeginHorizontal();
+            if (W.Button("Apply ID", primary: true)) VisorFeatures.Apply(_visorId);
+            if (W.Button("Clear", 70f)) _visorId = "";
+            GUILayout.EndHorizontal();
+
+            W.Space(4f);
+
+            var filter = _visorFilter.Trim();
+            var candidates = _visorHiddenOnly
+                ? all.Where(VisorFeatures.IsHidden).ToList()
+                : all;
+
+            var shown = string.IsNullOrEmpty(filter)
+                ? candidates
+                : candidates.Where(v =>
+                    VisorFeatures.NameOf(v).IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    VisorFeatures.IdOf(v).IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+
+            if (shown.Count == 0)
+            {
+                W.Hint(all.Count == 0
+                    ? "No visors loaded yet - join a lobby and press Refresh."
+                    : _visorHiddenOnly
+                        ? "No hidden visors in this build's catalogue."
+                        : "Nothing matched the filter.");
+                return;
+            }
+
+            var listOpen = false;
+            try
+            {
+                _visorScroll = GUILayout.BeginScrollView(_visorScroll, GUILayout.Height(300f));
+                listOpen = true;
+
+                foreach (var visor in shown)
+                {
+                    var id = VisorFeatures.IdOf(visor);
+                    var equipped = string.Equals(id, current, StringComparison.OrdinalIgnoreCase);
+
+                    GUILayout.BeginHorizontal(GUILayout.Height(22f));
+                    try
+                    {
+                        var label = $"<b>{VisorFeatures.NameOf(visor)}</b>";
+                        if (equipped) label += $"  <color={Theme.Hex(Theme.Good)}>equipped</color>";
+
+                        GUILayout.Label(label, Theme.Label, GUILayout.Width(200f));
+                        GUILayout.Label(id, Theme.Dim);
+
+                        if (VisorFeatures.IsBlacklisted(visor))
+                            GUILayout.Label($"<color={Theme.Hex(Theme.Warn)}>blacklisted</color>",
+                                Theme.Dim, GUILayout.Width(72f));
+                        else if (VisorFeatures.IsHidden(visor))
+                            GUILayout.Label($"<color={Theme.Hex(Theme.Muted)}>hidden</color>",
+                                Theme.Dim, GUILayout.Width(52f));
+
+                        GUILayout.FlexibleSpace();
+
+                        if (W.Button(equipped ? "Equipped" : "Use", 70f, 19f, primary: equipped))
+                            VisorFeatures.Apply(id);
+                    }
+                    finally
+                    {
+                        GUILayout.EndHorizontal();
+                    }
+                }
+            }
+            finally
+            {
+                if (listOpen)
+                {
+                    try { GUILayout.EndScrollView(); }
+                    catch (Exception e) { Safe.Report("visor list", e); }
+                }
+            }
         }
 
         private void DrawHost()
